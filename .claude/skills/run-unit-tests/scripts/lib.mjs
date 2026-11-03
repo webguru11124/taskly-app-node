@@ -118,8 +118,10 @@ export async function runVitest(workspace, { files = [], coverage = false, root 
   const reportFile = path.join(scratch, 'report.json');
   const args = [vitest, 'run', ...files, '--reporter=default', '--reporter=json', `--outputFile.json=${reportFile}`];
   if (coverage) {
-    args.push('--coverage.enabled=true', '--coverage.reporter=json', '--coverage.reporter=json-summary',
-      `--coverage.reportsDirectory=${path.join(scratch, 'coverage')}`);
+    // reportOnFailure: a PR that breaks one test must still get line data for
+    // every changed file, otherwise the plan can't say what is uncovered.
+    args.push('--coverage.enabled=true', '--coverage.reportOnFailure=true', '--coverage.reporter=json',
+      '--coverage.reporter=json-summary', `--coverage.reportsDirectory=${path.join(scratch, 'coverage')}`);
   }
   try {
     const result = await runProcess(args, { cwd, timeoutMs });
