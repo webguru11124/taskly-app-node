@@ -1,0 +1,5 @@
+# The agent's definition, skills, permission policy and workflow decide what
+# automation may do with repository write access. Changes need owner review.
+/.claude/                 @webguru11124
+/tools/test-agent/        @webguru11124
+/.github/                 @webguru11124
