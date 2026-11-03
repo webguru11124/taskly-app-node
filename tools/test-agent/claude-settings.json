@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "disableAllHooks": true,
+  "enableAllProjectMcpServers": false,
+  "permissions": {
+    "defaultMode": "dontAsk",
+    "disableBypassPermissionsMode": "disable",
+    "allow": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Skill(test-impact-analysis)",
+      "Skill(backend-unit-tests)",
+      "Skill(frontend-unit-tests)",
+      "Skill(run-unit-tests)",
+      "Edit(./backend/tests/**)",
+      "Edit(./frontend/src/**/*.test.ts)",
+      "Edit(./frontend/src/**/*.test.tsx)",
+      "Edit(./frontend/src/test/**)",
+      "Bash(node .claude/skills/run-unit-tests/scripts/run-tests.mjs *)"
+    ],
+    "deny": [
+      "WebFetch",
+      "WebSearch",
+      "Agent",
+      "NotebookEdit",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(//proc/**)",
+      "Read(//sys/**)",
+      "Read(~/.ssh/**)",
+      "Read(~/.claude.json)",
+      "Read(~/.claude/**)",
+      "Read(~/.config/**)",
+      "Edit(./.github/**)",
+      "Edit(./.claude/**)",
+      "Edit(./tools/**)",
+      "Edit(./backend/src/**)",
+      "Edit(./backend/prisma/**)",
+      "Edit(**/package.json)",
+      "Edit(**/package-lock.json)",
+      "Edit(**/*.config.ts)",
+      "Edit(**/tsconfig*.json)"
+    ]
+  }
+}

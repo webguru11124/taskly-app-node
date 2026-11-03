@@ -21,3 +21,6 @@ coverage/
 
 # macOS
 .DS_Store
+
+# Unit test agent working files (plan, logs, patch)
+.test-agent/

@@ -1,0 +1,84 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["summary", "decisions", "testFiles", "verification", "findings"],
+  "properties": {
+    "summary": {
+      "type": "string",
+      "description": "Two to four plain sentences: what you changed and why, or why nothing needed to change."
+    },
+    "decisions": {
+      "type": "array",
+      "description": "One entry per plan target.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "action", "reason"],
+        "properties": {
+          "file": { "type": "string", "description": "Repo-relative source file path." },
+          "action": { "type": "string", "enum": ["write", "update", "skip"] },
+          "testFile": { "type": "string", "description": "Repo-relative test file written or updated, if any." },
+          "reason": { "type": "string", "description": "One sentence a reviewer can check." }
+        }
+      }
+    },
+    "testFiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "change", "covers"],
+        "properties": {
+          "path": { "type": "string" },
+          "change": { "type": "string", "enum": ["created", "updated"] },
+          "testCount": { "type": "integer", "description": "Tests in this file after your change." },
+          "covers": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Short behaviour descriptions covered by the new or changed tests."
+          }
+        }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["typecheckPassed", "testsPassed", "runs"],
+      "properties": {
+        "typecheckPassed": { "type": "boolean" },
+        "testsPassed": { "type": "boolean" },
+        "runs": {
+          "type": "array",
+          "description": "Your last run of each command, copied from the [run-tests] RESULT lines.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["workspace", "command"],
+            "properties": {
+              "workspace": { "type": "string", "enum": ["backend", "frontend"] },
+              "command": { "type": "string", "enum": ["test", "typecheck", "coverage"] },
+              "passed": { "type": "integer" },
+              "failed": { "type": "integer" }
+            }
+          }
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "description": "Suspected production bugs, risks, or notable observations. Empty if none.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "severity", "description"],
+        "properties": {
+          "file": { "type": "string" },
+          "line": { "type": "integer" },
+          "severity": { "type": "string", "enum": ["bug", "risk", "info"] },
+          "description": { "type": "string" }
+        }
+      }
+    }
+  }
+}
