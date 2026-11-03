@@ -4,6 +4,7 @@ import type { ComponentProps } from 'react'
 import { beforeEach, expect, it, vi, type Mock } from 'vitest'
 import { useNotice } from '../../hooks/useNotice'
 import { todoFixture } from '../../test/todoFixture'
+import { ClearCompletedButton } from './components/ClearCompletedButton'
 import { DeleteTodoDialog } from './components/DeleteTodoDialog'
 import { TodoEditor } from './components/TodoEditor'
 import { TodoList } from './components/TodoList'
@@ -38,6 +39,16 @@ vi.mock('./components/TodosHeader', () => ({
   ),
 }))
 vi.mock('./components/TodoFilters', () => ({ TodoFilters: () => null }))
+vi.mock('./components/ClearCompletedButton', () => ({
+  ClearCompletedButton: vi.fn(
+    ({ onCleared }: ComponentProps<typeof ClearCompletedButton>) => (
+      <>
+        <button onClick={() => onCleared(1)}>Clear one</button>
+        <button onClick={() => onCleared(3)}>Clear three</button>
+      </>
+    ),
+  ),
+}))
 vi.mock('./components/TodoList', () => ({
   TodoList: vi.fn(
     ({
@@ -299,4 +310,28 @@ it('confirms a deletion before announcing it', async () => {
   await user.click(button('Confirm deletion'))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(notify).toHaveBeenCalledWith('Task deleted.')
+})
+
+it('offers to clear the completed tasks and locks it while busy', () => {
+  const completed = [
+    { ...todoFixture, id: 8, title: 'Ship it', completed: true },
+    { ...todoFixture, id: 9, title: 'Celebrate', completed: true },
+  ]
+  setup({ query: { data: [todoFixture, ...completed] }, busy: true })
+  expect(vi.mocked(ClearCompletedButton).mock.lastCall?.[0]).toEqual(
+    expect.objectContaining({ count: 2, disabled: true }),
+  )
+})
+
+it.each([
+  ['Clear one', '1 completed task cleared.'],
+  ['Clear three', '3 completed tasks cleared.'],
+])('announces how many tasks were cleared (%s)', async (name, notice) => {
+  const user = userEvent.setup()
+  const { notify } = setup()
+  expect(vi.mocked(ClearCompletedButton).mock.lastCall?.[0]).toEqual(
+    expect.objectContaining({ count: 0, disabled: false }),
+  )
+  await user.click(button(name))
+  expect(notify).toHaveBeenCalledWith(notice)
 })
