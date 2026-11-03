@@ -16,6 +16,10 @@ export function createTodosRouter(repository: TodoStore) {
     if (!result.success) return res.status(422).json({ detail: result.error.issues });
     res.status(201).json(await repository.create(result.data));
   });
+  // Registered before the /:id routes so that "completed" is not validated as an id.
+  router.delete('/completed', async (req, res) => {
+    res.json({ deleted: await repository.deleteCompleted() });
+  });
   router.get('/:id', async (req, res) => {
     const todo = await repository.get(Number(res.locals.todoId));
     if (!todo) return res.status(404).json({ detail: 'Task not found.' });
