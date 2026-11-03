@@ -134,3 +134,18 @@ Coverage — `backend/coverage/index.html`:
 ```sh
 npm run test:coverage
 ```
+
+## Unit test agent
+
+Pull requests that change `backend/src` or `frontend/src` are analysed by the
+`Unit Test Agent` workflow. A custom Claude Code agent
+(`.claude/agents/unit-test-agent.md`) and its skills (`.claude/skills/`) create
+or update unit tests for the changed code. The workflow verifies them
+independently and reports the results in the pull request. Setup, design and an
+example run are described in [SOLUTION.md](SOLUTION.md).
+
+Tooling tests (from the repository root):
+
+```sh
+node --test "tools/test-agent/test/*.test.mjs"
+```
