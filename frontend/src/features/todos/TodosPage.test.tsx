@@ -7,6 +7,7 @@ import { todoFixture } from '../../test/todoFixture'
 import { DeleteTodoDialog } from './components/DeleteTodoDialog'
 import { TodoEditor } from './components/TodoEditor'
 import { TodoList } from './components/TodoList'
+import { useDuplicateTodoMutation } from './hooks/useDuplicateTodoMutation'
 import { useTodoFilters } from './hooks/useTodoFilters'
 import { useTodosBusy } from './hooks/useTodosBusy'
 import { useTodosQuery } from './hooks/useTodosQuery'
@@ -15,6 +16,9 @@ import { TodosPage } from './TodosPage'
 
 vi.mock('../../design-system', () => import('../../design-system/mocks'))
 vi.mock('../../hooks/useNotice', () => ({ useNotice: vi.fn() }))
+vi.mock('./hooks/useDuplicateTodoMutation', () => ({
+  useDuplicateTodoMutation: vi.fn(),
+}))
 vi.mock('./hooks/useTodoFilters', () => ({ useTodoFilters: vi.fn() }))
 vi.mock('./hooks/useTodosBusy', () => ({ useTodosBusy: vi.fn() }))
 vi.mock('./hooks/useTodosQuery', () => ({ useTodosQuery: vi.fn() }))
@@ -45,6 +49,7 @@ vi.mock('./components/TodoList', () => ({
       onCreate,
       onToggle,
       onEdit,
+      onDuplicate,
       onDelete,
     }: ComponentProps<typeof TodoList>) => (
       <ul>
@@ -52,6 +57,9 @@ vi.mock('./components/TodoList', () => ({
           <li key={todo.id}>
             <button onClick={() => onToggle(todo)}>Toggle {todo.title}</button>
             <button onClick={() => onEdit(todo)}>Edit {todo.title}</button>
+            <button onClick={() => onDuplicate(todo)}>
+              Duplicate {todo.title}
+            </button>
             <button onClick={() => onDelete(todo)}>Delete {todo.title}</button>
           </li>
         ))}
@@ -93,16 +101,21 @@ function setup({
   query = {},
   mutationError = null,
   mutateAsync = vi.fn(),
+  duplicateError = null,
+  duplicateAsync = vi.fn(),
   busy = false,
   message = '',
 }: {
   query?: Record<string, unknown>
   mutationError?: Error | null
   mutateAsync?: Mock
+  duplicateError?: Error | null
+  duplicateAsync?: Mock
   busy?: boolean
   message?: string
 } = {}) {
   const notify = vi.fn()
+  const duplicateReset = vi.fn()
   const refetch = vi.fn().mockResolvedValue(undefined)
   vi.mocked(useTodosQuery).mockReturnValue({
     data: [todoFixture],
@@ -118,6 +131,11 @@ function setup({
     reset: vi.fn(),
     mutateAsync,
   } as unknown as ReturnType<typeof useUpdateTodoMutation>)
+  vi.mocked(useDuplicateTodoMutation).mockReturnValue({
+    error: duplicateError,
+    reset: duplicateReset,
+    mutateAsync: duplicateAsync,
+  } as unknown as ReturnType<typeof useDuplicateTodoMutation>)
   vi.mocked(useTodosBusy).mockReturnValue(busy)
   vi.mocked(useNotice).mockReturnValue({ message, notify })
   vi.mocked(useTodoFilters).mockImplementation((todos) => ({
@@ -130,7 +148,7 @@ function setup({
     setSort: vi.fn(),
   }))
   render(<TodosPage />)
-  return { notify, refetch }
+  return { notify, refetch, duplicateReset }
 }
 
 const button = (name: string) => screen.getByRole('button', { name })
@@ -152,6 +170,12 @@ it('displays a query failure and resets mutation errors before retrying', async 
     reset,
     mutateAsync: vi.fn(),
   } as unknown as ReturnType<typeof useUpdateTodoMutation>)
+  const duplicateReset = vi.fn()
+  vi.mocked(useDuplicateTodoMutation).mockReturnValue({
+    error: null,
+    reset: duplicateReset,
+    mutateAsync: vi.fn(),
+  } as unknown as ReturnType<typeof useDuplicateTodoMutation>)
   vi.mocked(useTodosBusy).mockReturnValue(false)
   vi.mocked(useNotice).mockReturnValue({ message: '', notify: vi.fn() })
   vi.mocked(useTodoFilters).mockReturnValue({
@@ -170,6 +194,7 @@ it('displays a query failure and resets mutation errors before retrying', async 
   await user.click(screen.getByRole('button', { name: 'Try again' }))
   await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1))
   expect(reset).toHaveBeenCalledTimes(1)
+  expect(duplicateReset).toHaveBeenCalledTimes(1)
   expect(reset.mock.invocationCallOrder[0]).toBeLessThan(
     refetch.mock.invocationCallOrder[0],
   )
@@ -211,6 +236,39 @@ it.each([
     await waitFor(() => expect(notify).toHaveBeenCalledWith(notice))
   },
 )
+
+it('duplicates a task and announces the copy', async () => {
+  const user = userEvent.setup()
+  const duplicateAsync = vi.fn().mockResolvedValue({ ...todoFixture, id: 9 })
+  const { notify } = setup({ duplicateAsync })
+  await user.click(button(`Duplicate ${todoFixture.title}`))
+  expect(duplicateAsync).toHaveBeenCalledWith(todoFixture.id)
+  await waitFor(() => expect(notify).toHaveBeenCalledWith('Task duplicated.'))
+})
+
+it('shows a duplication failure without announcing a notice', async () => {
+  const user = userEvent.setup()
+  const duplicateAsync = vi.fn().mockRejectedValue(new Error('Rejected'))
+  const { notify } = setup({
+    duplicateAsync,
+    duplicateError: new Error('Could not duplicate the task.'),
+    query: { isError: true, error: new Error('The server is unavailable.') },
+  })
+  expect(screen.getByTestId('alert')).toHaveTextContent(
+    'Could not duplicate the task.',
+  )
+  await user.click(button(`Duplicate ${todoFixture.title}`))
+  expect(duplicateAsync).toHaveBeenCalledTimes(1)
+  expect(notify).not.toHaveBeenCalled()
+})
+
+it('ignores duplicate requests while tasks are busy', async () => {
+  const user = userEvent.setup()
+  const duplicateAsync = vi.fn()
+  setup({ busy: true, duplicateAsync })
+  await user.click(button(`Duplicate ${todoFixture.title}`))
+  expect(duplicateAsync).not.toHaveBeenCalled()
+})
 
 it('shows a toggle error ahead of a query error without a notice', async () => {
   const user = userEvent.setup()
