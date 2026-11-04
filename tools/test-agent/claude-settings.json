@@ -9,6 +9,7 @@
       "Read",
       "Glob",
       "Grep",
+      "StructuredOutput",
       "Skill(test-impact-analysis)",
       "Skill(backend-unit-tests)",
       "Skill(frontend-unit-tests)",

@@ -2,7 +2,7 @@
 // which skills and tools were used, which files were written, the RESULT line
 // of every test run, permission denials, and the final structured report.
 
-const RESULT_LINE = /\[run-tests\] RESULT (\{.*\})/;
+const RESULT_LINES = /\[run-tests\] RESULT (\{.*\})/g;
 
 function textOf(content) {
   if (typeof content === 'string') return content;
@@ -57,11 +57,19 @@ export function createStreamCollector({ repoRoot = '', onProgress = () => {}, on
         if (block.type !== 'tool_result' || !state.pendingRuns.has(block.tool_use_id)) continue;
         const command = state.pendingRuns.get(block.tool_use_id);
         state.pendingRuns.delete(block.tool_use_id);
-        const match = RESULT_LINE.exec(textOf(block.content));
-        let outcome = null;
-        try { outcome = match ? JSON.parse(match[1]) : null; } catch { outcome = null; }
-        state.testRuns.push({ ...(outcome ?? { ok: false, unparsed: true }), args: command.replace(/^node \S+run-tests\.mjs\s*/, '') });
-        onProgress(`  ↳ ${outcome ? `${outcome.ok ? 'ok' : 'FAILED'}${outcome.total !== undefined ? ` (${outcome.passed}/${outcome.total} passed)` : ''}` : 'no RESULT line'}`);
+        // A single command line can chain several runs, each with its own RESULT.
+        const outcomes = [...textOf(block.content).matchAll(RESULT_LINES)].flatMap((match) => {
+          try { return [JSON.parse(match[1])]; } catch { return []; }
+        });
+        const args = command.replace(/^node \S+run-tests\.mjs\s*/, '');
+        if (!outcomes.length) {
+          state.testRuns.push({ ok: false, unparsed: true, args });
+          onProgress('  ↳ no RESULT line');
+        }
+        for (const outcome of outcomes) {
+          state.testRuns.push({ ...outcome, args: outcomes.length === 1 ? args : `${outcome.workspace} ${outcome.command}` });
+          onProgress(`  ↳ ${outcome.workspace} ${outcome.command}: ${outcome.ok ? 'ok' : 'FAILED'}${outcome.total !== undefined ? ` (${outcome.passed}/${outcome.total} passed)` : ''}`);
+        }
       }
       return;
     }
@@ -95,6 +103,7 @@ export function createStreamCollector({ repoRoot = '', onProgress = () => {}, on
         target: String(denial.tool_input?.file_path ?? denial.tool_input?.command ?? denial.tool_input?.url ?? '').slice(0, 200),
       })),
       report: result?.structured_output ?? null,
+      resultText: result && !result.is_error ? String(result.result ?? '').slice(0, 6000) || null : null,
       events: state.events,
       parseErrors: state.parseErrors,
     };
