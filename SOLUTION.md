@@ -41,9 +41,9 @@ flowchart LR
 | [`.claude/skills/test-impact-analysis/`](.claude/skills/test-impact-analysis/SKILL.md) | **Skill**: read the plan and decide `write` / `update` / `skip` per file, with a rubric for coverage gaps, baseline failures, type errors, deletions, and a budget. |
 | [`.claude/skills/backend-unit-tests/`](.claude/skills/backend-unit-tests/SKILL.md) | **Skill**: backend conventions plus [patterns](.claude/skills/backend-unit-tests/reference/patterns.md) for routers, the app factory, Prisma, Zod, env config, and lifecycle code. |
 | [`.claude/skills/frontend-unit-tests/`](.claude/skills/frontend-unit-tests/SKILL.md) | **Skill**: frontend conventions, an isolation strategy per unit type, and [patterns](.claude/skills/frontend-unit-tests/reference/patterns.md) for components, TanStack Query hooks, `fetch`, and time. |
-| [`.claude/skills/run-unit-tests/`](.claude/skills/run-unit-tests/SKILL.md) | **Skill and the agent's only command**: [`run-tests.mjs`](.claude/skills/run-unit-tests/scripts/run-tests.mjs) runs `test` / `typecheck` / `coverage` with validated arguments, a scrubbed environment, and a timeout, and ends with a machine-readable `RESULT` line. The skill also has a verification loop and a failure triage table. |
+| [`.claude/skills/run-unit-tests/`](.claude/skills/run-unit-tests/SKILL.md) | **Skill and the agent's only way to run code**: [`run-tests.mjs`](.claude/skills/run-unit-tests/scripts/run-tests.mjs) runs `test` / `typecheck` / `coverage` with validated arguments, a scrubbed environment, and a timeout, and ends with a machine-readable `RESULT` line. The skill also has a verification loop and a failure triage table. |
 | [`.github/workflows/unit-test-agent.yml`](.github/workflows/unit-test-agent.yml) | **Agentic PR workflow**: the plan → generate → verify → publish jobs. |
-| [`tools/test-agent/`](tools/test-agent) | Deterministic, zero-dependency orchestration: `plan.mjs`, `run-agent.mjs`, `verify.mjs`, `guard.mjs`, `render-comment.mjs`, the CI permission policy [`claude-settings.json`](tools/test-agent/claude-settings.json), and the report [schema](tools/test-agent/agent-report.schema.json). 75 `node:test` tests in `test/`. |
+| [`tools/test-agent/`](tools/test-agent) | Deterministic, zero-dependency orchestration: `plan.mjs`, `run-agent.mjs`, `verify.mjs`, `guard.mjs`, `render-comment.mjs`, the CI permission policy [`claude-settings.json`](tools/test-agent/claude-settings.json), and the report [schema](tools/test-agent/agent-report.schema.json). 77 `node:test` tests in `test/`. |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Regular CI: typecheck, tests with coverage, build, format check, and tooling tests. |
 
 ## How a run works
@@ -58,7 +58,7 @@ flowchart LR
    are uncovered, or if its workspace has failing tests or type errors.
    Otherwise nothing runs and nothing is spent.
 2. **generate** (`run-agent.mjs`): runs
-   `claude -p --agent unit-test-agent --permission-mode dontAsk --setting-sources project --settings tools/test-agent/claude-settings.json --strict-mcp-config --json-schema <report schema>`.
+   `claude -p --agent unit-test-agent --permission-mode dontAsk --permission-prompts none --setting-sources project --settings tools/test-agent/claude-settings.json --strict-mcp-config --json-schema <report schema>`.
    The prompt holds only the plan summary (validated file paths and line
    ranges), never PR titles, bodies, or comments. The agent:
    - loads **`test-impact-analysis`** and records a decision per target,
@@ -93,7 +93,7 @@ flowchart LR
 | **Deterministic plan before the agent** | Cheap, reproducible decisions (what changed, what is uncovered, which tests relate) come from code, not tokens. The agent gets a precise brief, and PRs that need nothing don't start a model at all. |
 | **Agent proposes, pipeline disposes** | The agent never pushes. Its patch goes through a separate verify job without secrets, and every number in the PR comment comes from that job. Agent-written text is shown as the agent's opinion and sanitised. |
 | **Three layers of write restriction** | Claude Code permission rules (allow only test paths, plus deny rules), the agent's hard rules, and the authoritative post-run policy guard, which is unit tested. |
-| **One wrapper script as the only shell entry point** | Argument allow-listing, an env allow-list (test code never sees the OAuth token or `GITHUB_TOKEN`), timeouts, trimmed output, and a parseable `RESULT` line for the agent, the runner, and humans. |
+| **One wrapper script as the only way to run code** (Claude Code still allows its built-in read-only commands) | Argument allow-listing, an env allow-list (test code never sees the OAuth token or `GITHUB_TOKEN`), timeouts, trimmed output, and a parseable `RESULT` line for the agent, the runner, and humans. |
 | **Coverage of changed lines as the trigger, behaviour as the goal** | Coverage decides *whether* to call the agent. The skills tell it to assert behaviour and to report suspected bugs rather than encode them. |
 | **Skills split by concern** (analysis, backend conventions, frontend conventions, running) | Each skill is reusable alone (for example `/frontend-unit-tests` in a local session). The agent loads only what the change needs (progressive disclosure keeps context small), and convention updates don't touch the agent. |
 | **Zero-dependency Node `.mjs` tooling** | Nothing to install or audit at the repo root. It runs on any Node ≥ 22 and is tested with `node:test`. |
@@ -228,6 +228,9 @@ The sticky comment was updated to "No test changes needed".
 
 ## Limitations
 
+- **The reported permission mode is `default`, not `dontAsk`.** Claude Code
+  changes it when subprocess scrubbing is on. `--permission-prompts none` keeps
+  deny-by-default, and the runner refuses any other mode.
 - **Not yet exercised on GitHub:** the Claude CLI step, skill loading through
   the `Skill` tool, the structured report, `verify` on an agent patch in CI,
   and the commit and push. Their logic has unit tests with stubbed runs, and

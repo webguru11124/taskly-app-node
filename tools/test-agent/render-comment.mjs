@@ -82,7 +82,7 @@ function agentSection(agent) {
     '### Agent run',
     '',
     `**Skills used:** ${(agent.skillsUsed ?? []).map((skill) => `\`${safeText(skill, 60)}\``).join(' → ') || 'none'}`,
-    `**Model:** ${safeText(agent.model ?? 'n/a', 60)} · **Turns:** ${agent.numTurns ?? 'n/a'} · **Duration:** ${duration(agent.durationMs)} · **Status:** ${safeText(agent.status, 20)}`,
+    `**Model:** ${safeText(agent.model ?? 'n/a', 60)} · **Turns:** ${agent.numTurns ?? 'n/a'} · **Duration:** ${duration(agent.durationMs)} · **Status:** ${safeText(agent.status, 20)} · **Permission mode:** ${safeText(agent.permissionMode ?? 'n/a', 20)}`,
     `**Tool calls:** ${tools}`,
     `**Blocked by permission policy:** ${(agent.permissionDenials ?? []).length ? agent.permissionDenials.map((denial) => `${safeText(denial.tool, 30)} ${codePath(denial.target)}`).join('; ') : 'nothing'}`,
   ];
