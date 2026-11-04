@@ -93,7 +93,7 @@ async function coverage({ workspace, sources }) {
     if (!data) { console.log(`${file} | not instrumented (excluded from coverage or never imported)`); continue; }
     console.log(`${file} | ${data.lines} | ${data.branches} | ${data.functions} | ${formatRanges(data.uncoveredLines) || '-'} | ${data.uncoveredBranchLines.join(', ') || '-'}`);
   }
-  return { ok: result.testsPassed, testsPassed: result.testsPassed, thresholdsMet: result.thresholdsMet, total: result.summary?.total ?? 0, reported: selected.length };
+  return { ok: result.testsPassed, testsPassed: result.testsPassed, thresholdsMet: result.thresholdsMet, total: result.summary?.total ?? 0, passed: result.summary?.passed ?? 0, reported: selected.length };
 }
 
 try {

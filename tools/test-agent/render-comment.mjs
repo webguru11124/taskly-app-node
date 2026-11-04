@@ -121,6 +121,7 @@ function verificationSection(verification) {
   const workspaces = Object.entries(verification.workspaces ?? {});
   if (workspaces.length) {
     lines.push('', table(['Check', ...workspaces.map(([name]) => name)], [
+      ['Formatting (Prettier)', ...workspaces.map(([, entry]) => (entry.format ? icon(entry.format.ok) : '–'))],
       ['Typecheck (`tsc --noEmit`)', ...workspaces.map(([, entry]) => `${icon(entry.typecheck.ok)}${entry.typecheck.ok ? '' : ` ${entry.typecheck.errors} error(s)`}`)],
       ['Full test suite', ...workspaces.map(([, entry]) => `${icon(entry.tests.ok)} ${entry.tests.passed}/${entry.tests.total} passed`)],
       ['New tests', ...workspaces.map(([, entry]) => (entry.testsAdded === null ? 'n/a' : `+${entry.testsAdded}`))],

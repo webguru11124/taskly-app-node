@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, describe, it } from 'node:test';
 import { git } from '../lib/git.mjs';
+import { formatStagedChanges } from '../format-changes.mjs';
 import { buildPlan } from '../plan.mjs';
 import { verify } from '../verify.mjs';
 
@@ -185,10 +186,61 @@ describe('verify', () => {
     assert.equal(result.workspaces.backend.coverageThresholdsMet, false);
   });
 
+  it('fails when a changed frontend file breaks the format check that CI runs', async () => {
+    const cwd = repo(base);
+    const patchFile = patchFor(cwd, { 'frontend/src/lib/http.test.ts': "it('x', () => expect(1).toBe(1))\n" });
+    const seen = [];
+    const badFormat = { ...passing, runPrettier: async (workspace, files) => { seen.push([workspace, files]); return { ok: false, output: '[warn] src/lib/http.test.ts' }; } };
+    const result = await verify({ plan: { workspaces: [] }, patchFile, cwd, tools: badFormat });
+    assert.deepEqual(seen, [['frontend', ['src/lib/http.test.ts']]]);
+    assert.equal(result.status, 'failed');
+    assert.equal(result.workspaces.frontend.format.ok, false);
+    assert.equal(result.workspaces.frontend.tests.ok, true);
+  });
+
+  it('accepts a correctly formatted frontend change', async () => {
+    const cwd = repo(base);
+    const patchFile = patchFor(cwd, { 'frontend/src/lib/http.test.ts': "it('x', () => expect(1).toBe(1))\n" });
+    const result = await verify({ plan: { workspaces: [] }, patchFile, cwd, tools: { ...passing, runPrettier: async () => ({ ok: true, output: '' }) } });
+    assert.equal(result.status, 'passed');
+    assert.deepEqual(result.workspaces.frontend.format, { ok: true, output: '' });
+  });
+
+  it('skips the format check for workspaces without Prettier', async () => {
+    const cwd = repo(base);
+    const patchFile = patchFor(cwd, { 'backend/tests/router.test.ts': "it('a', () => expect(1).toBe(1));\n" });
+    const result = await verify({ plan, patchFile, cwd, tools: passing });
+    assert.equal(result.workspaces.backend.format, null);
+  });
+
   it('reports an empty patch as no changes', async () => {
     const cwd = repo(base);
     const empty = path.join(cwd, 'empty.patch');
     writeFileSync(empty, '');
     assert.equal((await verify({ plan, patchFile: empty, cwd, tools: passing })).status, 'no-changes');
+  });
+});
+
+describe('format-changes', () => {
+  it('formats only the staged frontend test files', async () => {
+    const cwd = repo(base);
+    write(cwd, {
+      'frontend/src/lib/http.test.ts': 'a\n',
+      'frontend/src/test/helper.tsx': 'b\n',
+      'frontend/src/lib/http.ts': 'c\n',
+      'backend/tests/router.test.ts': 'd\n',
+    });
+    git(['add', '-A'], { cwd });
+    const calls = [];
+    const formatted = await formatStagedChanges({ cwd, format: async (workspace, files) => { calls.push([workspace, files]); return { ok: true, output: '' }; } });
+    assert.deepEqual(calls, [['frontend', ['src/lib/http.test.ts', 'src/test/helper.tsx']]]);
+    assert.deepEqual(formatted, ['frontend/src/lib/http.test.ts', 'frontend/src/test/helper.tsx']);
+  });
+
+  it('leaves a formatter failure for verification to report', async () => {
+    const cwd = repo(base);
+    write(cwd, { 'frontend/src/lib/http.test.ts': 'a\n' });
+    git(['add', '-A'], { cwd });
+    assert.deepEqual(await formatStagedChanges({ cwd, format: async () => ({ ok: false, output: 'boom' }) }), []);
   });
 });

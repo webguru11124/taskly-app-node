@@ -17,6 +17,7 @@ export const WORKSPACES = {
   },
   frontend: {
     dir: 'frontend',
+    prettier: true,
     test: /^src\/(?:[\w.-]+\/)*[\w.-]+\.test\.tsx?$/,
     source: /^src\/(?:[\w.-]+\/)*[\w.-]+\.tsx?$/,
   },
@@ -104,6 +105,15 @@ export function truncate(text, limit = 12_000) {
 export async function runTypecheck(workspace, { root = REPO_ROOT } = {}) {
   const tsc = binary(workspace, 'typescript/bin/tsc', root);
   const result = await runProcess([tsc, '--noEmit', '--pretty', 'false'], { cwd: workspaceDir(workspace, root) });
+  return { ...result, ok: result.exitCode === 0 };
+}
+
+/** Runs the workspace's own Prettier on workspace-relative files. */
+export async function runPrettier(workspace, files, { write = false, root = REPO_ROOT } = {}) {
+  const prettier = binary(workspace, 'prettier/bin/prettier.cjs', root);
+  // Line endings depend on the checkout (CRLF on Windows), not on the change.
+  const mode = write ? ['--write'] : ['--check', '--end-of-line', 'auto'];
+  const result = await runProcess([prettier, ...mode, ...files], { cwd: workspaceDir(workspace, root) });
   return { ...result, ok: result.exitCode === 0 };
 }
 
