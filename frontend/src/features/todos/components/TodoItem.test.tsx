@@ -10,12 +10,7 @@ vi.mock('../../../design-system', () => import('../../../design-system/mocks'))
 beforeEach(() => vi.clearAllMocks())
 
 function renderItem(todo: Todo, busy = false) {
-  const callbacks = {
-    onToggle: vi.fn(),
-    onEdit: vi.fn(),
-    onDuplicate: vi.fn(),
-    onDelete: vi.fn(),
-  }
+  const callbacks = { onToggle: vi.fn(), onEdit: vi.fn(), onDelete: vi.fn() }
   render(<TodoItem todo={todo} busy={busy} {...callbacks} />)
   return callbacks
 }
@@ -34,7 +29,6 @@ it('shows an active task and forwards edit requests', async () => {
       todo={todoFixture}
       busy={false}
       onEdit={onEdit}
-      onDuplicate={vi.fn()}
       onToggle={onToggle}
       onDelete={onDelete}
     />,
@@ -65,18 +59,6 @@ it('offers to complete an active task and forwards deletion', async () => {
   )
   expect(onToggle).toHaveBeenCalledTimes(1)
   expect(onEdit).not.toHaveBeenCalled()
-})
-
-it('forwards duplicate requests without triggering other actions', async () => {
-  const user = userEvent.setup()
-  const { onDuplicate, onEdit, onToggle, onDelete } = renderItem(todoFixture)
-  await user.click(
-    screen.getByRole('button', { name: `Duplicate: ${todoFixture.title}` }),
-  )
-  expect(onDuplicate).toHaveBeenCalledTimes(1)
-  expect(onEdit).not.toHaveBeenCalled()
-  expect(onToggle).not.toHaveBeenCalled()
-  expect(onDelete).not.toHaveBeenCalled()
 })
 
 it('marks a completed task and forwards toggling', async () => {
@@ -110,9 +92,6 @@ it('disables every action while tasks are busy', () => {
     screen.getByRole('checkbox', { name: `Complete: ${title}` }),
   ).toBeDisabled()
   expect(screen.getByRole('button', { name: `Edit: ${title}` })).toBeDisabled()
-  expect(
-    screen.getByRole('button', { name: `Duplicate: ${title}` }),
-  ).toBeDisabled()
   expect(
     screen.getByRole('button', { name: `Delete: ${title}` }),
   ).toBeDisabled()
