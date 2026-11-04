@@ -63,11 +63,11 @@ export function createStreamCollector({ repoRoot = '', onProgress = () => {}, on
         });
         const args = command.replace(/^node \S+run-tests\.mjs\s*/, '');
         if (!outcomes.length) {
-          state.testRuns.push({ ok: false, unparsed: true, args });
+          state.testRuns.push({ ok: false, unparsed: true, args, toolUseId: block.tool_use_id });
           onProgress('  ↳ no RESULT line');
         }
         for (const outcome of outcomes) {
-          state.testRuns.push({ ...outcome, args: outcomes.length === 1 ? args : `${outcome.workspace} ${outcome.command}` });
+          state.testRuns.push({ ...outcome, args: outcomes.length === 1 ? args : `${outcome.workspace} ${outcome.command}`, toolUseId: block.tool_use_id });
           onProgress(`  ↳ ${outcome.workspace} ${outcome.command}: ${outcome.ok ? 'ok' : 'FAILED'}${outcome.total !== undefined ? ` (${outcome.passed}/${outcome.total} passed)` : ''}`);
         }
       }
@@ -83,6 +83,8 @@ export function createStreamCollector({ repoRoot = '', onProgress = () => {}, on
 
   function summary() {
     const result = state.result;
+    // A command the policy denied never ran, so it isn't a failed test run.
+    const denied = new Set((result?.permission_denials ?? []).map((denial) => denial.tool_use_id));
     return {
       status: !result ? 'incomplete' : result.is_error || result.subtype !== 'success' ? 'failed' : 'completed',
       subtype: result?.subtype ?? null,
@@ -97,7 +99,7 @@ export function createStreamCollector({ repoRoot = '', onProgress = () => {}, on
       skillsUsed: state.skillsUsed,
       toolCalls: state.toolCalls,
       filesWritten: [...state.filesWritten].sort(),
-      testRuns: state.testRuns,
+      testRuns: state.testRuns.filter((run) => !denied.has(run.toolUseId)).map(({ toolUseId, ...run }) => run),
       permissionDenials: (result?.permission_denials ?? []).map((denial) => ({
         tool: denial.tool_name,
         target: String(denial.tool_input?.file_path ?? denial.tool_input?.command ?? denial.tool_input?.url ?? '').slice(0, 200),
