@@ -12,6 +12,7 @@ interface TodoListProps {
   onCreate: () => void
   onToggle: (todo: Todo) => void
   onEdit: (todo: Todo) => void
+  onDuplicate: (todo: Todo) => void
   onDelete: (todo: Todo) => void
 }
 
@@ -24,6 +25,7 @@ export function TodoList({
   onCreate,
   onToggle,
   onEdit,
+  onDuplicate,
   onDelete,
 }: TodoListProps) {
   return (
@@ -46,6 +48,7 @@ export function TodoList({
               busy={busy}
               onToggle={() => onToggle(todo)}
               onEdit={() => onEdit(todo)}
+              onDuplicate={() => onDuplicate(todo)}
               onDelete={() => onDelete(todo)}
             />
           ))}
