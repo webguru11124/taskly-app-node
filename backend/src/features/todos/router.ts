@@ -32,5 +32,10 @@ export function createTodosRouter(repository: TodoStore) {
     if (!await repository.delete(Number(res.locals.todoId))) return res.status(404).json({ detail: 'Task not found.' });
     res.status(204).end();
   });
+  router.post('/:id/duplicate', async (req, res) => {
+    const todo = await repository.duplicate(Number(res.locals.todoId));
+    if (!todo) return res.status(404).json({ detail: 'Task not found.' });
+    res.status(201).json(todo);
+  });
   return router;
 }

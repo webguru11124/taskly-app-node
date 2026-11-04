@@ -153,6 +153,40 @@
           }
         }
       }
+    },
+    "/api/todos/{id}/duplicate": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      ],
+      "post": {
+        "summary": "Create an active copy of a task",
+        "responses": {
+          "201": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Todo"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found"
+          },
+          "422": {
+            "description": "Invalid input"
+          }
+        }
+      }
     }
   },
   "components": {

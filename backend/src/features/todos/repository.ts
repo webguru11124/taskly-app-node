@@ -1,6 +1,9 @@
 import { fromModel } from './mappers.js';
 import type { Database, TodoStore, TodoCreate, TodoUpdate, Todo } from './types.js';
 
+const MAX_TITLE_LENGTH = 120;
+const COPY_SUFFIX = ' (copy)';
+
 export class TodoRepository implements TodoStore {
   constructor(private readonly database: Pick<Database, 'todo'>) {}
 
@@ -47,5 +50,24 @@ export class TodoRepository implements TodoStore {
   async delete(id: number): Promise<boolean> {
     const { count } = await this.database.todo.deleteMany({ where: { id } });
     return count > 0;
+  }
+
+  async duplicate(id: number): Promise<Todo | null> {
+    const source = await this.database.todo.findUnique({ where: { id } });
+    if (!source) return null;
+    const now = new Date();
+    const record = await this.database.todo.create({
+      data: {
+        // Long titles are shortened so that the copy still fits the column.
+        title: `${source.title.slice(0, MAX_TITLE_LENGTH - COPY_SUFFIX.length)}${COPY_SUFFIX}`,
+        description: source.description,
+        priority: source.priority,
+        due_date: source.due_date,
+        completed: false,
+        created_at: now,
+        updated_at: now,
+      },
+    });
+    return fromModel(record);
   }
 }

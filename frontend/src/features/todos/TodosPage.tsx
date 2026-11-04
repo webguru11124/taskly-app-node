@@ -7,6 +7,7 @@ import { TodoEditor } from './components/TodoEditor'
 import { TodoFilters } from './components/TodoFilters'
 import { TodoList } from './components/TodoList'
 import { TodosHeader } from './components/TodosHeader'
+import { useDuplicateTodoMutation } from './hooks/useDuplicateTodoMutation'
 import { useTodoFilters } from './hooks/useTodoFilters'
 import { useTodosBusy } from './hooks/useTodosBusy'
 import { useTodosQuery } from './hooks/useTodosQuery'
@@ -18,11 +19,12 @@ export function TodosPage() {
   const todos = todosQuery.data ?? []
   const filters = useTodoFilters(todos)
   const toggleTodo = useUpdateTodoMutation()
+  const duplicateTodo = useDuplicateTodoMutation()
   const busy = useTodosBusy()
   const { message, notify } = useNotice()
   const [editor, setEditor] = useState<Todo | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Todo | null>(null)
-  const error = toggleTodo.error ?? todosQuery.error
+  const error = toggleTodo.error ?? duplicateTodo.error ?? todosQuery.error
 
   async function toggle(todo: Todo) {
     if (busy) return
@@ -40,8 +42,18 @@ export function TodosPage() {
       // Display the mutation error in the page alert.
     }
   }
+  async function duplicate(todo: Todo) {
+    if (busy) return
+    try {
+      await duplicateTodo.mutateAsync(todo.id)
+      notify('Task duplicated.')
+    } catch {
+      // Display the mutation error in the page alert.
+    }
+  }
   async function retry() {
     toggleTodo.reset()
+    duplicateTodo.reset()
     await todosQuery.refetch()
   }
 
@@ -81,6 +93,7 @@ export function TodosPage() {
           onCreate={() => setEditor('new')}
           onToggle={(todo) => void toggle(todo)}
           onEdit={setEditor}
+          onDuplicate={(todo) => void duplicate(todo)}
           onDelete={setDeleting}
         />
       </main>
