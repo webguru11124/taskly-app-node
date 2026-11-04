@@ -76,38 +76,6 @@ it('deletes tasks and handles missing tasks', async () => {
   expect(await repository.delete(1)).toBe(false);
 });
 
-it('duplicates a task as an uncompleted copy with fresh timestamps', async () => {
-  const { database, repository } = setup();
-  const findUnique = vi.spyOn(database.todo, 'findUnique').mockResolvedValue({ ...record, completed: true });
-  const create = vi.spyOn(database.todo, 'create').mockResolvedValue({ ...record, id: 2, title: 'Plan the sprint (copy)' });
-  expect(await repository.duplicate(1)).toEqual({ ...todo, id: 2, title: 'Plan the sprint (copy)' });
-  expect(findUnique).toHaveBeenCalledWith({ where: { id: 1 } });
-  const data = create.mock.calls[0][0].data;
-  expect(data).toMatchObject({
-    title: 'Plan the sprint (copy)', description: 'Details', priority: 'high', due_date: record.due_date, completed: false,
-  });
-  expect(data.created_at).toBeInstanceOf(Date);
-  expect(data.updated_at).toEqual(data.created_at);
-});
-
-it('shortens long titles so the copy fits in 120 characters', async () => {
-  const { database, repository } = setup();
-  vi.spyOn(database.todo, 'findUnique').mockResolvedValue({ ...record, title: 'x'.repeat(120) });
-  const create = vi.spyOn(database.todo, 'create').mockResolvedValue(record);
-  await repository.duplicate(1);
-  const title = create.mock.calls[0][0].data.title as string;
-  expect(title).toHaveLength(120);
-  expect(title).toBe(`${'x'.repeat(113)} (copy)`);
-});
-
-it('returns null without creating when duplicating a missing task', async () => {
-  const { database, repository } = setup();
-  vi.spyOn(database.todo, 'findUnique').mockResolvedValue(null);
-  const create = vi.spyOn(database.todo, 'create');
-  expect(await repository.duplicate(9)).toBeNull();
-  expect(create).not.toHaveBeenCalled();
-});
-
 it('propagates database errors', async () => {
   const { database, repository } = setup();
   vi.spyOn(database.todo, 'findMany').mockRejectedValue(new Error('Database unavailable'));

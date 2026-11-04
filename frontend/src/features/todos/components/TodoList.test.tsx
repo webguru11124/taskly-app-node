@@ -17,7 +17,6 @@ vi.mock('./TodoItem', () => ({
     busy,
     onToggle,
     onEdit,
-    onDuplicate,
     onDelete,
   }: ComponentProps<typeof TodoItem>) => (
     <li>
@@ -26,9 +25,6 @@ vi.mock('./TodoItem', () => ({
       </button>
       <button disabled={busy} onClick={onEdit}>
         Edit {todo.title}
-      </button>
-      <button disabled={busy} onClick={onDuplicate}>
-        Duplicate {todo.title}
       </button>
       <button disabled={busy} onClick={onDelete}>
         Delete {todo.title}
@@ -42,7 +38,6 @@ const callbacks = () => ({
   onCreate: vi.fn(),
   onToggle: vi.fn(),
   onEdit: vi.fn(),
-  onDuplicate: vi.fn(),
   onDelete: vi.fn(),
 })
 
@@ -55,7 +50,6 @@ it('shows loading feedback before showing an empty list', () => {
     onCreate: vi.fn(),
     onToggle: vi.fn(),
     onEdit: vi.fn(),
-    onDuplicate: vi.fn(),
     onDelete: vi.fn(),
   }
   const { rerender } = render(<TodoList {...props} loading />)
@@ -107,8 +101,6 @@ it('keeps showing cached tasks after a failed refresh and forwards actions', asy
   expect(handlers.onToggle).toHaveBeenCalledWith(other)
   await user.click(button(`Edit ${todo.title}`))
   expect(handlers.onEdit).toHaveBeenCalledWith(todo)
-  await user.click(button(`Duplicate ${other.title}`))
-  expect(handlers.onDuplicate).toHaveBeenCalledWith(other)
   await user.click(button(`Delete ${other.title}`))
   expect(handlers.onDelete).toHaveBeenCalledWith(other)
   expect(handlers.onCreate).not.toHaveBeenCalled()

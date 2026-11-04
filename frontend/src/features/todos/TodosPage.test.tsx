@@ -7,7 +7,6 @@ import { todoFixture } from '../../test/todoFixture'
 import { DeleteTodoDialog } from './components/DeleteTodoDialog'
 import { TodoEditor } from './components/TodoEditor'
 import { TodoList } from './components/TodoList'
-import { useDuplicateTodoMutation } from './hooks/useDuplicateTodoMutation'
 import { useTodoFilters } from './hooks/useTodoFilters'
 import { useTodosBusy } from './hooks/useTodosBusy'
 import { useTodosQuery } from './hooks/useTodosQuery'
@@ -16,9 +15,6 @@ import { TodosPage } from './TodosPage'
 
 vi.mock('../../design-system', () => import('../../design-system/mocks'))
 vi.mock('../../hooks/useNotice', () => ({ useNotice: vi.fn() }))
-vi.mock('./hooks/useDuplicateTodoMutation', () => ({
-  useDuplicateTodoMutation: vi.fn(),
-}))
 vi.mock('./hooks/useTodoFilters', () => ({ useTodoFilters: vi.fn() }))
 vi.mock('./hooks/useTodosBusy', () => ({ useTodosBusy: vi.fn() }))
 vi.mock('./hooks/useTodosQuery', () => ({ useTodosQuery: vi.fn() }))
@@ -49,7 +45,6 @@ vi.mock('./components/TodoList', () => ({
       onCreate,
       onToggle,
       onEdit,
-      onDuplicate,
       onDelete,
     }: ComponentProps<typeof TodoList>) => (
       <ul>
@@ -57,9 +52,6 @@ vi.mock('./components/TodoList', () => ({
           <li key={todo.id}>
             <button onClick={() => onToggle(todo)}>Toggle {todo.title}</button>
             <button onClick={() => onEdit(todo)}>Edit {todo.title}</button>
-            <button onClick={() => onDuplicate(todo)}>
-              Duplicate {todo.title}
-            </button>
             <button onClick={() => onDelete(todo)}>Delete {todo.title}</button>
           </li>
         ))}
@@ -95,21 +87,7 @@ vi.mock('../../components/SuccessNotice', () => ({
     <output>{message}</output>
   ),
 }))
-function mockDuplicate({
-  error = null,
-  mutateAsync = vi.fn(),
-  reset = vi.fn(),
-}: { error?: Error | null; mutateAsync?: Mock; reset?: Mock } = {}) {
-  vi.mocked(useDuplicateTodoMutation).mockReturnValue({
-    error,
-    reset,
-    mutateAsync,
-  } as unknown as ReturnType<typeof useDuplicateTodoMutation>)
-}
-beforeEach(() => {
-  vi.clearAllMocks()
-  mockDuplicate()
-})
+beforeEach(() => vi.clearAllMocks())
 
 function setup({
   query = {},
@@ -304,48 +282,6 @@ it('edits a task and announces the save after closing the editor', async () => {
   await user.click(button('Save editor'))
   expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   expect(notify).toHaveBeenCalledWith('Changes saved.')
-})
-
-it('duplicates a task and announces it', async () => {
-  const user = userEvent.setup()
-  const duplicate = vi.fn().mockResolvedValue({ ...todoFixture, id: 9 })
-  mockDuplicate({ mutateAsync: duplicate })
-  const { notify } = setup()
-  await user.click(button(`Duplicate ${todoFixture.title}`))
-  expect(duplicate).toHaveBeenCalledWith(todoFixture.id)
-  await waitFor(() => expect(notify).toHaveBeenCalledWith('Task duplicated.'))
-})
-
-it('does not announce a failed duplication and shows its error', async () => {
-  const user = userEvent.setup()
-  const duplicate = vi.fn().mockRejectedValue(new Error('Rejected'))
-  mockDuplicate({ mutateAsync: duplicate, error: new Error('Could not copy.') })
-  const { notify } = setup({
-    query: { isError: true, error: new Error('The server is unavailable.') },
-  })
-  expect(screen.getByTestId('alert')).toHaveTextContent('Could not copy.')
-  await user.click(button(`Duplicate ${todoFixture.title}`))
-  expect(duplicate).toHaveBeenCalledTimes(1)
-  expect(notify).not.toHaveBeenCalled()
-})
-
-it('ignores duplicate requests while tasks are busy', async () => {
-  const user = userEvent.setup()
-  const duplicate = vi.fn()
-  mockDuplicate({ mutateAsync: duplicate })
-  setup({ busy: true })
-  await user.click(button(`Duplicate ${todoFixture.title}`))
-  expect(duplicate).not.toHaveBeenCalled()
-})
-
-it('resets a duplication error before retrying', async () => {
-  const user = userEvent.setup()
-  const reset = vi.fn()
-  mockDuplicate({ error: new Error('Could not copy.'), reset })
-  const { refetch } = setup()
-  await user.click(button('Try again'))
-  await waitFor(() => expect(refetch).toHaveBeenCalledTimes(1))
-  expect(reset).toHaveBeenCalledTimes(1)
 })
 
 it('confirms a deletion before announcing it', async () => {

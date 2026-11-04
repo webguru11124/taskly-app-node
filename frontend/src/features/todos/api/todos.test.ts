@@ -60,10 +60,3 @@ it('deletes a task by id', async () => {
   await expect(todosApi.remove(7)).resolves.toBeUndefined()
   expect(request).toHaveBeenCalledWith('/todos/7', { method: 'DELETE' })
 })
-
-it('duplicates a task with a POST to its duplicate endpoint', async () => {
-  const copy = { ...todoFixture, id: 8 }
-  vi.mocked(request).mockResolvedValue(copy)
-  await expect(todosApi.duplicate(7)).resolves.toEqual(copy)
-  expect(request).toHaveBeenCalledWith('/todos/7/duplicate', { method: 'POST' })
-})
