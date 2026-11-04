@@ -122,6 +122,18 @@ jobs:
           path: .test-agent
       - name: Install Claude Code ${{ env.CLAUDE_CODE_VERSION }}
         run: npm install --global --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}"
+      # Claude Code needs bubblewrap to keep its credentials out of the commands
+      # it spawns. Ubuntu 24.04 restricts the unprivileged user namespaces that
+      # bubblewrap uses. This job fails rather than running without isolation.
+      - name: Install subprocess isolation
+        run: |
+          for attempt in 1 2 3; do
+            sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends bubblewrap socat && break
+            echo "apt-get attempt $attempt failed, retrying..."
+            sleep 5
+          done
+          command -v bwrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Run unit-test-agent
         env:
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
@@ -277,3 +289,5 @@ jobs:
           else
             echo "Nothing to test and no earlier comment; leaving the PR quiet (see the job summary)."
           fi
+      - name: Fail the run if the agent or its tests failed
+        run: node tools/test-agent/check-outcome.mjs

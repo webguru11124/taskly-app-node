@@ -33,6 +33,20 @@ export function agentEnv(source = process.env) {
   };
 }
 
+// Actions masks secrets in job logs, but not in artifacts, and the artifacts of
+// a public repository are public.
+export function createRedactor(source = process.env) {
+  const secrets = [source.CLAUDE_CODE_OAUTH_TOKEN, source.ANTHROPIC_API_KEY].filter(Boolean);
+  return (text) => secrets.reduce((current, secret) => current.replaceAll(secret, '[REDACTED]'), text);
+}
+
+/** The most useful single line of a crash's stderr, which also holds source excerpts. */
+export function failureReason(stderr) {
+  const lines = stderr.split('\n').map((line) => line.trim()).filter(Boolean);
+  const reason = lines.find((line) => /^error:/i.test(line)) ?? lines.at(-1) ?? '';
+  return reason.replace(/^error:\s*/i, '').slice(0, 300) || null;
+}
+
 export function buildPrompt(plan, planPath) {
   const targets = plan.targets.filter((target) => SAFE_PATH.test(target.file));
   const lines = [
@@ -92,6 +106,7 @@ export async function runAgent({ plan, planPath, outDir, model, maxTurns, timeou
   const prompt = buildPrompt(plan, planPath);
   writeFileSync(path.join(outDir, 'agent-prompt.md'), `${prompt}\n`);
 
+  const redact = createRedactor();
   const log = createWriteStream(path.join(outDir, 'agent-log.jsonl'));
   const started = Date.now();
   const collector = createStreamCollector({
@@ -106,7 +121,7 @@ export async function runAgent({ plan, planPath, outDir, model, maxTurns, timeou
   let stderr = '';
   child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-4000); });
   const lines = createInterface({ input: child.stdout });
-  lines.on('line', (line) => { log.write(`${line}\n`); collector.handleLine(line); });
+  lines.on('line', (line) => { log.write(`${redact(line)}\n`); collector.handleLine(line); });
 
   let timedOut = false;
   const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); }, timeoutMinutes * 60_000);
@@ -120,7 +135,9 @@ export async function runAgent({ plan, planPath, outDir, model, maxTurns, timeou
   const summary = collector.summary();
   if (timedOut) summary.status = 'timeout';
   else if (exitCode !== 0 && summary.status === 'completed') summary.status = 'failed';
-  return { ...summary, exitCode, stderr: summary.status === 'completed' ? '' : stderr.trim() };
+  const failed = summary.status !== 'completed';
+  const error = summary.error ?? (timedOut ? `No result after ${timeoutMinutes} minutes.` : failed ? failureReason(stderr) : null);
+  return JSON.parse(redact(JSON.stringify({ ...summary, error, exitCode, stderr: failed ? stderr.trim() : '' })));
 }
 
 async function main() {

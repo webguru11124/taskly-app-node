@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { safeText } from '../lib/markdown.mjs';
 import { createStreamCollector } from '../lib/stream.mjs';
-import { MARKER, headline, renderComment } from '../render-comment.mjs';
-import { agentEnv, buildPrompt, claudeArgs } from '../run-agent.mjs';
+import { MARKER, headline, renderComment, runProblem } from '../render-comment.mjs';
+import { agentEnv, buildPrompt, claudeArgs, createRedactor, failureReason } from '../run-agent.mjs';
 
 const plan = {
   mode: 'pr', head: 'abcdef1234567890', decision: 'run', reason: '1 source file(s) need new or updated tests', workspaces: ['backend'],
@@ -71,9 +71,64 @@ describe('agent invocation', () => {
     assert.equal(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, '1');
     for (const name of ['GITHUB_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'NODE_OPTIONS']) assert.equal(env[name], undefined);
   });
+
+  it('removes credentials from text that ends up in public artifacts', () => {
+    const redact = createRedactor({ CLAUDE_CODE_OAUTH_TOKEN: 'oauth-secret', ANTHROPIC_API_KEY: '' });
+    assert.equal(redact('token=oauth-secret, again oauth-secret'), 'token=[REDACTED], again [REDACTED]');
+    assert.equal(createRedactor({})('nothing to hide'), 'nothing to hide');
+  });
+
+  it('picks the error line out of a crash that also prints source excerpts', () => {
+    const stderr = [
+      "6 | // and may be used to improve Anthropic's products, including training models.",
+      '11 | import{Le,ms}from"/$bunfs/root/chunk-82vh1gjp.js";',
+      '',
+      'error: bubblewrap is required for subprocess env scrubbing and isolation.',
+      '      at $7o (/$bunfs/root/chunk-pqsgk0b7.js:11:7298)',
+      '',
+      'Bun v1.4.4 (Linux x64)',
+    ].join('\n');
+    assert.equal(failureReason(stderr), 'bubblewrap is required for subprocess env scrubbing and isolation.');
+    assert.equal(failureReason('spawn claude ENOENT\n'), 'spawn claude ENOENT');
+    assert.equal(failureReason(''), null);
+  });
+});
+
+describe('run outcome', () => {
+  const crashed = { status: 'incomplete', error: 'bubblewrap is required' };
+
+  it('fails a run whose agent crashed, even though every job exited cleanly', () => {
+    assert.equal(runProblem({ plan, agent: crashed, verification: { status: 'no-changes' } }), 'the agent did not finish (incomplete): bubblewrap is required');
+    assert.equal(runProblem({ plan }), 'the agent did not start');
+    assert.equal(runProblem({}), 'the change analysis did not produce a plan');
+  });
+
+  it('fails a run whose generated tests were not accepted', () => {
+    const agent = { status: 'completed' };
+    for (const status of ['failed', 'rejected', 'apply-failed']) {
+      assert.equal(runProblem({ plan, agent, verification: { status } }), `the generated tests were not accepted (${status})`);
+    }
+  });
+
+  it('accepts committed tests, considered decisions and setup gaps', () => {
+    const agent = { status: 'completed' };
+    assert.equal(runProblem({ plan, agent: { status: 'failed' }, verification: { status: 'passed' }, publish: { outcome: 'committed', commit: 'abc' } }), null);
+    assert.equal(runProblem({ plan, agent, verification: { status: 'no-changes' } }), null);
+    assert.equal(runProblem({ plan, agent, verification: { status: 'passed' }, publish: { outcome: 'not-committed' } }), null);
+    assert.equal(runProblem({ plan: { ...plan, decision: 'skip' } }), null);
+    assert.equal(runProblem({ plan, setup: 'missing-credentials' }), null);
+  });
 });
 
 describe('PR comment', () => {
+  it('explains why the agent did not finish', () => {
+    assert.equal(
+      headline({ plan, agent: { status: 'incomplete', error: 'bubblewrap is required' }, verification: { status: 'no-changes' } }),
+      '❌ **The agent did not finish (incomplete).** bubblewrap is required',
+    );
+    assert.equal(headline({ plan }), '❌ **The agent did not start.** See the workflow logs.');
+  });
+
   it('neutralises markup, mentions and links in agent text', () => {
     const text = safeText('<img src=x onerror=alert(1)> ping @octocat see [x](https://evil.test) ![i](http://t) a|b');
     assert.doesNotMatch(text, /<img|@octocat|\]\(|https:\/\//);
