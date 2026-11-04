@@ -5,8 +5,13 @@ GitHub Actions workflow runs it on every pull request that changes frontend or
 backend source. The agent decides whether the change needs new or updated unit
 tests, writes them, and runs them. The workflow then **verifies the result
 independently**, commits the verified tests to the PR branch, and reports
-everything in a sticky PR comment. The same agent and skills also backfilled
-the tests that were missing from the base repository.
+everything in a sticky PR comment. Sub-agents following the same agent
+definition and skills also backfilled the tests that were missing from the
+base repository.
+
+**Status:** the workflow's analysis, reporting and skip paths have run on
+GitHub. The agent itself has not run through this workflow yet, because the
+repository has no Claude credential configured. See [Example run](#example-run).
 
 ```mermaid
 flowchart LR
@@ -127,12 +132,24 @@ file below a coverage threshold. That is how the initial backfill was scoped.
 
 ## Coverage backfill (base repository)
 
-I scoped the backfill with `plan.mjs --mode backfill`. Two Claude Code
-sub-agents ran it in parallel, one per workspace, each given the
-`unit-test-agent` definition and the four skills. Each could change only test
-files and run commands only through `run-tests.mjs`. I then re-checked the
-result with `verify.mjs` on a clean checkout, the same independent
-verification the PR workflow uses. My only change was Prettier on one file.
+Two general-purpose Claude Code sub-agents did the backfill in parallel, one
+per workspace. I told each to read and follow the `unit-test-agent` definition
+and the skill files. This was not a `claude --agent` run, and the CI permission
+policy was not in force: "only test files" and "only `run-tests.mjs`" were
+instructions. The backend sub-agent reported one departure, which was read-only:
+it used `head`, `cat`, and a pipe to `tail`. I then applied Prettier to the
+result, which changed one file.
+
+I ran `verify.mjs` on the committed tests (commit `49f7c8e`) afterwards. Each
+workspace was checked separately on a clean checkout of the previous commit,
+because they were separate runs and the combined 26-file patch exceeds the
+policy's 25-file limit. Coverage in the table comes from local Vitest runs of
+the backfill.
+
+| Verification | Files | Policy violations | Typecheck | Tests | 2× reruns | Targets at 100 % lines and branches |
+| --- | --- | --- | --- | --- | --- | --- |
+| backend | 7 | 0 | passed | 118/118 | stable | 7 of 7 |
+| frontend | 19 | 0 | passed | 117/117 | stable | 18 of 18 |
 
 | Workspace | Tests (files) | Statements | Branches | Functions | Lines |
 | --- | --- | --- | --- | --- | --- |
@@ -166,7 +183,34 @@ are left for the maintainers:
 
 ## Example run
 
-EXAMPLE_RUN
+**The agent has not run end to end yet**, because no Claude credential is
+configured on the repository. So this section can't yet show agent decisions,
+skills used, or tests the agent generated. Both runs below come from
+[PR #1](https://github.com/webguru11124/taskly-app-node/pull/1), and in both the
+`Generate tests (agent)` and `Verify generated tests` jobs were skipped.
+
+**[Run 41595323223](https://github.com/webguru11124/taskly-app-node/actions/runs/41595323223)
+(head `cedb37e`, the feature without tests).** The plan decided `run` and found
+6 targets. The publish job posted a comment saying the credential was missing.
+
+| Target | Change | Changed lines | Uncovered before |
+| --- | --- | --- | --- |
+| `frontend/src/features/todos/hooks/useClearCompletedMutation.ts` | added | 1-19 | 10, 13-15 |
+| `backend/src/features/todos/repository.ts` | modified | 51-55 | 53-54 |
+| `backend/src/features/todos/router.ts` | modified | 19-22 | 21 |
+| `frontend/src/features/todos/components/ClearCompletedButton.tsx` | added | 1-43 | 19-22, 28, 33 |
+| `frontend/src/features/todos/api/todos.ts` | modified | 34-35 | 34 |
+| `frontend/src/features/todos/TodosPage.tsx` | modified | 5, 27, 65-75 | 69 |
+
+The plan left out `backend/openapi.json`, `types.ts` and `queryKeys.ts`, each
+with a reason. Its baseline recorded the breakage the feature caused: 1 backend
+type error (the stale `TodoStore` stub) and 10 failing frontend tests.
+
+**[Run 41604349785](https://github.com/webguru11124/taskly-app-node/actions/runs/41604349785)
+(head `4eb3ee5`, after tests were added).** These tests were written by hand,
+not by the agent, to get the PR's CI passing. The plan decided `skip`, because
+all 6 changed files were covered by passing tests (backend 121, frontend 131).
+The sticky comment was updated to "No test changes needed".
 
 ## Assumptions
 
@@ -183,12 +227,18 @@ EXAMPLE_RUN
 
 ## Limitations
 
+- **Not yet exercised on GitHub:** the Claude CLI step, skill loading through
+  the `Skill` tool, the structured report, `verify` on an agent patch in CI,
+  and the commit and push. Their logic has unit tests with stubbed runs, and
+  `verify.mjs` has run locally on real patches, but the first real run may need
+  fixes.
 - **Line coverage is the trigger.** A covered line whose behaviour changed
   (for example a constant) won't trigger a run unless tests fail or someone
   adds `test-agent:run`.
 - **Commits pushed with `GITHUB_TOKEN` don't trigger workflows.** The publish
-  job dispatches `ci.yml` instead. The checks show on the commit, but
-  `pull_request`-scoped required checks would need a GitHub App token.
+  job dispatches `ci.yml` instead. I haven't confirmed yet how those results
+  appear on the PR, and `pull_request`-scoped required checks would need a
+  GitHub App token.
 - **No fork PR support** (no secrets on fork PRs, by design).
 - **Model output varies.** Verification makes bad output harmless (it is
   discarded and reported), but not impossible. Agent "findings" are not
