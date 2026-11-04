@@ -40,6 +40,15 @@ export function createRedactor(source = process.env) {
   return (text) => secrets.reduce((current, secret) => current.replaceAll(secret, '[REDACTED]'), text);
 }
 
+// Claude Code reports `default` instead of `dontAsk` when subprocess scrubbing is
+// on. With --permission-prompts none, both deny whatever isn't allow-listed. Any
+// other mode would weaken the policy, so the runner stops the session instead.
+const ACCEPTED_PERMISSION_MODES = ['dontAsk', 'default'];
+
+export function permissionModeProblem(mode) {
+  return ACCEPTED_PERMISSION_MODES.includes(mode) ? null : `Refused to run in permission mode "${mode}".`;
+}
+
 /** The most useful single line of a crash's stderr, which also holds source excerpts. */
 export function failureReason(stderr) {
   const lines = stderr.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -88,6 +97,7 @@ export function claudeArgs({ model, maxTurns, settingsFile, schema }) {
     '--setting-sources', 'project',
     '--settings', settingsFile,
     '--permission-mode', 'dontAsk',
+    '--permission-prompts', 'none',
     '--strict-mcp-config',
     '--no-session-persistence',
     '--disallowedTools', 'WebFetch,WebSearch,Agent,NotebookEdit',
@@ -109,9 +119,14 @@ export async function runAgent({ plan, planPath, outDir, model, maxTurns, timeou
   const redact = createRedactor();
   const log = createWriteStream(path.join(outDir, 'agent-log.jsonl'));
   const started = Date.now();
+  let refused = null;
   const collector = createStreamCollector({
     repoRoot: cwd,
     onProgress: (message) => console.log(`[agent +${Math.round((Date.now() - started) / 1000)}s] ${message}`),
+    onInit: ({ permissionMode }) => {
+      refused = permissionModeProblem(permissionMode);
+      if (refused) child.kill('SIGTERM');
+    },
   });
 
   const child = spawn(bin, claudeArgs({ model, maxTurns, settingsFile, schema }), {
@@ -133,10 +148,11 @@ export async function runAgent({ plan, planPath, outDir, model, maxTurns, timeou
   await new Promise((resolve) => log.end(resolve));
 
   const summary = collector.summary();
-  if (timedOut) summary.status = 'timeout';
+  if (refused) summary.status = 'failed';
+  else if (timedOut) summary.status = 'timeout';
   else if (exitCode !== 0 && summary.status === 'completed') summary.status = 'failed';
   const failed = summary.status !== 'completed';
-  const error = summary.error ?? (timedOut ? `No result after ${timeoutMinutes} minutes.` : failed ? failureReason(stderr) : null);
+  const error = refused ?? summary.error ?? (timedOut ? `No result after ${timeoutMinutes} minutes.` : failed ? failureReason(stderr) : null);
   return JSON.parse(redact(JSON.stringify({ ...summary, error, exitCode, stderr: failed ? stderr.trim() : '' })));
 }
 

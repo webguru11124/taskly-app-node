@@ -23,7 +23,7 @@ export function describeToolUse(name, input = {}) {
   return name;
 }
 
-export function createStreamCollector({ repoRoot = '', onProgress = () => {} } = {}) {
+export function createStreamCollector({ repoRoot = '', onProgress = () => {}, onInit = () => {} } = {}) {
   const state = {
     init: null, result: null, skillsUsed: [], toolCalls: {}, filesWritten: new Set(), testRuns: [],
     pendingRuns: new Map(), events: 0, parseErrors: 0,
@@ -35,6 +35,7 @@ export function createStreamCollector({ repoRoot = '', onProgress = () => {} } =
     if (event.type === 'system' && event.subtype === 'init') {
       state.init = { model: event.model, permissionMode: event.permissionMode, tools: event.tools, claudeCodeVersion: event.claude_code_version };
       onProgress(`session started (model ${event.model}, permission mode ${event.permissionMode})`);
+      onInit(state.init);
       return;
     }
     if (event.type === 'assistant') {

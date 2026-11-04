@@ -29,7 +29,8 @@ node .claude/skills/run-unit-tests/scripts/run-tests.mjs <backend|frontend> <com
 
 Only test-file and source-file paths that match the workspace patterns are
 accepted. Anything else is refused with exit code 2 and `"usageError": true`.
-Don't try other commands. Everything except this script is denied.
+Don't try other ways to run code. Apart from read-only commands, everything
+except this script is denied.
 
 ## Verification loop
 

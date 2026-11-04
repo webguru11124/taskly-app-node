@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { safeText } from '../lib/markdown.mjs';
 import { createStreamCollector } from '../lib/stream.mjs';
 import { MARKER, headline, renderComment, runProblem } from '../render-comment.mjs';
-import { agentEnv, buildPrompt, claudeArgs, createRedactor, failureReason } from '../run-agent.mjs';
+import { agentEnv, buildPrompt, claudeArgs, createRedactor, failureReason, permissionModeProblem } from '../run-agent.mjs';
 
 const plan = {
   mode: 'pr', head: 'abcdef1234567890', decision: 'run', reason: '1 source file(s) need new or updated tests', workspaces: ['backend'],
@@ -61,6 +61,7 @@ describe('agent invocation', () => {
     const flag = (name) => args[args.indexOf(name) + 1];
     assert.equal(flag('--agent'), 'unit-test-agent');
     assert.equal(flag('--permission-mode'), 'dontAsk');
+    assert.equal(flag('--permission-prompts'), 'none');
     assert.equal(flag('--setting-sources'), 'project');
     assert.ok(args.includes('--strict-mcp-config') && args.includes('--no-session-persistence'));
   });
@@ -70,6 +71,20 @@ describe('agent invocation', () => {
     assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, 'oauth');
     assert.equal(env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB, '1');
     for (const name of ['GITHUB_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'NODE_OPTIONS']) assert.equal(env[name], undefined);
+  });
+
+  it('accepts only permission modes that deny what is not allow-listed', () => {
+    for (const mode of ['dontAsk', 'default']) assert.equal(permissionModeProblem(mode), null);
+    for (const mode of ['bypassPermissions', 'acceptEdits', 'auto', undefined]) {
+      assert.equal(permissionModeProblem(mode), `Refused to run in permission mode "${mode}".`);
+    }
+  });
+
+  it('reports the session settings as soon as the session starts', () => {
+    const seen = [];
+    const collector = createStreamCollector({ onInit: (init) => seen.push(init.permissionMode) });
+    collector.handle({ type: 'system', subtype: 'init', model: 'm', permissionMode: 'default', tools: [] });
+    assert.deepEqual(seen, ['default']);
   });
 
   it('removes credentials from text that ends up in public artifacts', () => {
