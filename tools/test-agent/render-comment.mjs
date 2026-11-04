@@ -13,12 +13,28 @@ export const MARKER = '<!-- unit-test-agent:sticky -->';
 const icon = (ok) => (ok === undefined || ok === null ? '–' : ok ? '✅' : '❌');
 const pct = (value) => (Number.isFinite(value) ? `${value}%` : 'n/a');
 
+/**
+ * Why this run should show as failed, or null. Verified tests that were
+ * committed always count as success, even if the agent then ran out of turns.
+ * A repository without credentials stays green: its comment explains the setup.
+ */
+export function runProblem({ plan, agent, verification, publish, setup }) {
+  if (!plan) return 'the change analysis did not produce a plan';
+  if (plan.decision !== 'run' || setup === 'missing-credentials' || publish?.outcome === 'committed') return null;
+  if (!agent) return 'the agent did not start';
+  if (['failed', 'timeout', 'incomplete'].includes(agent.status)) return `the agent did not finish (${agent.status}): ${agent.error ?? 'see the logs'}`;
+  if (['failed', 'rejected', 'apply-failed'].includes(verification?.status)) return `the generated tests were not accepted (${verification.status})`;
+  return null;
+}
+
 export function headline({ plan, agent, verification, publish, setup }) {
   if (setup === 'missing-credentials') return '⚠️ **Not configured.** Add the `CLAUDE_CODE_OAUTH_TOKEN` (or `ANTHROPIC_API_KEY`) repository secret to enable the agent. The analysis below ran anyway.';
   if (!plan) return '❌ **The change analysis failed.** See the workflow logs.';
   if (plan.decision !== 'run') return `⏭️ **No test changes needed.** ${safeText(plan.reason)}.`;
   if (!agent || ['failed', 'timeout', 'incomplete'].includes(agent.status)) {
-    if (!verification || verification.status === 'no-changes') return `❌ **The agent run ${agent?.status ?? 'did not start'}.** ${agent?.error ? safeText(agent.error, 200) : 'See the workflow logs.'}`;
+    if (!verification || verification.status === 'no-changes') {
+      return `❌ **The agent ${agent ? `did not finish (${safeText(agent.status, 20)})` : 'did not start'}.** ${agent?.error ? safeText(agent.error, 300) : 'See the workflow logs.'}`;
+    }
   }
   switch (verification?.status) {
     case 'no-changes': return 'ℹ️ **The agent analysed the change and decided no test changes were needed.** Its reasoning is below.';
