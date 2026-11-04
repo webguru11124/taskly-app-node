@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import {
-  WORKSPACES, countLines, executableLinesIn, intersectRanges, runTypecheck, runVitest, truncate,
+  WORKSPACES, countLines, executableLinesIn, intersectRanges, runPrettier, runTypecheck, runVitest, truncate,
 } from '../../.claude/skills/run-unit-tests/scripts/lib.mjs';
 import { appendSummary, isMain, readJsonFile } from './lib/cli.mjs';
 import { git } from './lib/git.mjs';
@@ -17,7 +17,7 @@ import { checkStagedChanges } from './lib/policy.mjs';
 
 const workspaceOf = (file) => Object.entries(WORKSPACES).find(([, config]) => file.startsWith(`${config.dir}/`))?.[0];
 
-export async function verify({ plan, patchFile, cwd = process.cwd(), reruns = 2, tools = { runTypecheck, runVitest } }) {
+export async function verify({ plan, patchFile, cwd = process.cwd(), reruns = 2, tools = { runTypecheck, runVitest, runPrettier } }) {
   const result = {
     version: 1, status: 'no-changes', passed: false, patchSha256: null, guard: null,
     workspaces: {}, targets: [], testFiles: [], testsAdded: 0,
@@ -44,9 +44,11 @@ export async function verify({ plan, patchFile, cwd = process.cwd(), reruns = 2,
   const workspaces = [...new Set([...(plan?.workspaces ?? []), ...Object.keys(changedByWorkspace)])].sort();
 
   for (const workspace of workspaces) {
+    const changedFiles = changedByWorkspace[workspace] ?? [];
+    const format = WORKSPACES[workspace].prettier && changedFiles.length ? await tools.runPrettier(workspace, changedFiles, { root: cwd }) : null;
     const typecheck = await tools.runTypecheck(workspace, { root: cwd });
     const suite = await tools.runVitest(workspace, { coverage: true, root: cwd });
-    const changedTests = (changedByWorkspace[workspace] ?? []).filter((file) => WORKSPACES[workspace].test.test(file));
+    const changedTests = changedFiles.filter((file) => WORKSPACES[workspace].test.test(file));
     const repeatRuns = [];
     for (let run = 0; run < reruns && changedTests.length; run += 1) {
       repeatRuns.push(await tools.runVitest(workspace, { files: changedTests, root: cwd }));
@@ -54,6 +56,7 @@ export async function verify({ plan, patchFile, cwd = process.cwd(), reruns = 2,
     const summary = suite.summary ?? { total: 0, passed: 0, failed: 0, failures: [], perFile: [] };
     const baselineTotal = plan?.baseline?.[workspace]?.total;
     result.workspaces[workspace] = {
+      format: format ? { ok: format.ok, output: format.ok ? '' : truncate(format.output, 1000) } : null,
       typecheck: { ok: typecheck.ok, errors: (typecheck.output.match(/error TS\d+/g) ?? []).length, output: typecheck.ok ? '' : truncate(typecheck.output, 4000) },
       tests: {
         ok: suite.testsPassed,
@@ -92,7 +95,7 @@ export async function verify({ plan, patchFile, cwd = process.cwd(), reruns = 2,
 
   const checks = Object.values(result.workspaces);
   result.testsAdded = checks.reduce((sum, entry) => sum + (entry.testsAdded ?? 0), 0);
-  result.passed = checks.length > 0 && checks.every((entry) => entry.typecheck.ok && entry.tests.ok && entry.flaky.ok);
+  result.passed = checks.length > 0 && checks.every((entry) => (entry.format?.ok ?? true) && entry.typecheck.ok && entry.tests.ok && entry.flaky.ok);
   result.status = result.passed ? 'passed' : 'failed';
   return result;
 }
@@ -101,7 +104,7 @@ function summaryMarkdown(result) {
   const lines = [`### Unit Test Agent verification: \`${result.status}\``];
   if (result.guard?.violations.length) lines.push('', '**Policy violations**', ...result.guard.violations.map((v) => `- \`${v.file ?? '*'}${v.line ? `:${v.line}` : ''}\` ${v.rule}: ${v.message}`));
   for (const [workspace, entry] of Object.entries(result.workspaces)) {
-    lines.push(`- **${workspace}**: typecheck ${entry.typecheck.ok ? '✅' : '❌'} · tests ${entry.tests.ok ? '✅' : '❌'} ${entry.tests.passed}/${entry.tests.total} · reruns ${entry.flaky.ok ? '✅' : '❌'} (${entry.flaky.runs})`);
+    lines.push(`- **${workspace}**: format ${entry.format ? (entry.format.ok ? '✅' : '❌') : '–'} · typecheck ${entry.typecheck.ok ? '✅' : '❌'} · tests ${entry.tests.ok ? '✅' : '❌'} ${entry.tests.passed}/${entry.tests.total} · reruns ${entry.flaky.ok ? '✅' : '❌'} (${entry.flaky.runs})`);
   }
   return lines.join('\n');
 }

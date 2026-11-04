@@ -24,7 +24,8 @@ Vitest 4 (jsdom), Testing Library (`react`, `user-event`, `jest-dom`).
 ## File conventions
 
 - Prettier style: **no semicolons, single quotes, trailing commas**, 2-space
-  indent, 80 columns. Match the neighbouring tests.
+  indent, 80 columns. Match the neighbouring tests. In CI, Prettier runs on your
+  changed files after your session. Elsewhere, run `npm run format`.
 - Import test APIs explicitly:
   `import { beforeEach, describe, expect, it, vi } from 'vitest'`.
 - Query by **role, label, or text**, the way a user would:
