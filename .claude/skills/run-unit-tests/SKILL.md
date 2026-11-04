@@ -25,7 +25,7 @@ node .claude/skills/run-unit-tests/scripts/run-tests.mjs <backend|frontend> <com
 | `test [files...]` | Run the given test files (workspace-relative like `tests/router.test.ts`, or repo-relative like `frontend/src/lib/http.test.ts`). With no files, run the whole suite. |
 | `test <files...> --runs 3` | Repeat the run to detect flaky tests. `"flaky": true` in RESULT means the outcome changed between runs. |
 | `typecheck` | `tsc --noEmit` for the workspace. Tests are type-checked too. Vitest does **not** type-check, so always run this. |
-| `coverage [--source src/file.ts ...]` | Whole suite with coverage. Prints line/branch/function % and **uncovered line ranges** for the given sources (default: every file below 100 %). |
+| `coverage [--source src/a.ts --source src/b.ts]` | Whole suite with coverage. Repeat `--source` for each file. Prints line/branch/function % and **uncovered line ranges** for the given sources (default: every file below 100 %). |
 
 Only test-file and source-file paths that match the workspace patterns are
 accepted. Anything else is refused with exit code 2 and `"usageError": true`.

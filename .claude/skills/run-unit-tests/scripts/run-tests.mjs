@@ -13,8 +13,9 @@ const USAGE = `Usage: node .claude/skills/run-unit-tests/scripts/run-tests.mjs <
     test [files...] [--runs N]   Run all tests, or only the given test files. --runs (1-5)
                                  repeats the run to detect flaky tests.
     typecheck                    Type-check the workspace (sources and tests).
-    coverage [--source file...]  Run the whole suite with coverage and report the given
-                                 source files (default: every file below 100 %).`;
+    coverage [--source file]...  Run the whole suite with coverage and report the given
+                                 source files, one --source per file (default: every
+                                 file below 100 %).`;
 
 function parse(argv) {
   const [workspace, command, ...rest] = argv;
