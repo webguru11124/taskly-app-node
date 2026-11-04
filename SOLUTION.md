@@ -128,7 +128,8 @@ claude --agent unit-test-agent "Add tests for frontend/src/lib/http.ts"         
 ```
 
 `plan.mjs --mode backfill --workspaces backend,frontend` lists every source
-file below a coverage threshold. That is how the initial backfill was scoped.
+file below a coverage threshold. I added it after starting the initial
+backfill, which was scoped from the baseline Vitest coverage reports.
 
 ## Coverage backfill (base repository)
 
