@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { safeText } from '../lib/markdown.mjs';
 import { createStreamCollector } from '../lib/stream.mjs';
@@ -46,6 +47,43 @@ describe('stream collector', () => {
     failed.handle({ type: 'result', subtype: 'error_max_turns', is_error: true, result: 'max turns' });
     assert.equal(failed.summary().status, 'failed');
     assert.equal(createStreamCollector().summary().status, 'incomplete');
+  });
+});
+
+describe('stream collector with chained commands', () => {
+  it('records every RESULT line of a command that runs several workspaces', () => {
+    const collector = createStreamCollector();
+    const command = 'node .claude/skills/run-unit-tests/scripts/run-tests.mjs backend test; node .claude/skills/run-unit-tests/scripts/run-tests.mjs frontend test';
+    collector.handle({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'Bash', input: { command } }] } });
+    collector.handle({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: '[run-tests] RESULT {"workspace":"backend","command":"test","ok":true,"total":2,"passed":2}\nnoise\n[run-tests] RESULT {"workspace":"frontend","command":"test","ok":false}' }] } });
+    assert.deepEqual(collector.summary().testRuns, [
+      { workspace: 'backend', command: 'test', ok: true, total: 2, passed: 2, args: 'backend test' },
+      { workspace: 'frontend', command: 'test', ok: false, args: 'frontend test' },
+    ]);
+  });
+
+  it('keeps the final message of a finished run, but not of a failed one', () => {
+    const finished = createStreamCollector();
+    finished.handle({ type: 'result', subtype: 'success', is_error: false, result: 'Frontend tests did not run.' });
+    assert.equal(finished.summary().resultText, 'Frontend tests did not run.');
+    const failed = createStreamCollector();
+    failed.handle({ type: 'result', subtype: 'success', is_error: true, result: 'API Error: 401' });
+    assert.equal(failed.summary().resultText, null);
+  });
+});
+
+describe('repository setup the agent depends on', () => {
+  const root = new URL('../../../', import.meta.url);
+
+  it('lets the custom agent return its structured report', () => {
+    // The agent's tools allowlist also applies to the tool behind --json-schema.
+    const definition = readFileSync(new URL('.claude/agents/unit-test-agent.md', root), 'utf8');
+    assert.match(definition, /^tools:.*\bStructuredOutput\b/m);
+  });
+
+  it('keeps a valid root package.json for the sandbox', () => {
+    // Without it, the sandbox shows an empty placeholder that breaks Vite.
+    assert.equal(JSON.parse(readFileSync(new URL('package.json', root), 'utf8')).private, true);
   });
 });
 
@@ -136,6 +174,20 @@ describe('run outcome', () => {
 });
 
 describe('PR comment', () => {
+  it('shows what the agent said when it returned no structured report', () => {
+    const agent = { status: 'completed', toolCalls: {}, skillsUsed: [], permissionDenials: [], testRuns: [], report: null, resultText: 'Frontend tests did not run.\n\nThe suite failed at <startup>.' };
+    const markdown = renderComment({ plan, agent, verification: { status: 'no-changes' } });
+    assert.match(markdown, /Agent's final message \(it returned no structured report\)/);
+    assert.match(markdown, /Frontend tests did not run\.\n\nThe suite failed at &lt;startup&gt;\./);
+  });
+
+  it('shows the notes from a structured report', () => {
+    const agent = { status: 'completed', toolCalls: {}, skillsUsed: [], permissionDenials: [], testRuns: [], report: { summary: 'Done.', verification: { notes: 'Skipped the reruns.' } } };
+    const markdown = renderComment({ plan, agent, verification: { status: 'no-changes' } });
+    assert.match(markdown, /\*\*Agent's notes:\*\* Skipped the reruns\./);
+    assert.doesNotMatch(markdown, /final message/);
+  });
+
   it('explains why the agent did not finish', () => {
     assert.equal(
       headline({ plan, agent: { status: 'incomplete', error: 'bubblewrap is required' }, verification: { status: 'no-changes' } }),

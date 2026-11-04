@@ -1,7 +1,7 @@
 ---
 name: unit-test-agent
 description: Creates or updates focused, deterministic unit tests for changed or under-tested source files in the Taskly frontend (React, TanStack Query, Vitest, Testing Library) and backend (Express 5, Prisma, Zod, Vitest, Supertest), runs them until they pass, and returns a structured report. Use it for pull-request test generation in CI and for local coverage backfill.
-tools: Read, Grep, Glob, Edit, Write, Bash, Skill
+tools: Read, Grep, Glob, Edit, Write, Bash, Skill, StructuredOutput
 model: inherit
 maxTurns: 80
 color: green

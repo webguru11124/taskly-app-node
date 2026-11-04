@@ -1,0 +1,5 @@
+{
+  "name": "taskly-app-node",
+  "private": true,
+  "description": "Repository root. backend/ and frontend/ are separate npm projects, so there is nothing to install here. See CLAUDE.md."
+}

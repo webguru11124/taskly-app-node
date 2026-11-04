@@ -87,6 +87,11 @@ function agentSection(agent) {
     `**Blocked by permission policy:** ${(agent.permissionDenials ?? []).length ? agent.permissionDenials.map((denial) => `${safeText(denial.tool, 30)} ${codePath(denial.target)}`).join('; ') : 'nothing'}`,
   ];
   if (agent.report?.summary) lines.push('', `> ${safeText(agent.report.summary, 700)}`);
+  if (agent.report?.verification?.notes) lines.push('', `**Agent's notes:** ${safeText(agent.report.verification.notes, 500)}`);
+  if (!agent.report && agent.resultText) {
+    const message = agent.resultText.split('\n').filter((line) => line.trim()).slice(0, 40).map((line) => safeText(line, 500)).join('\n\n');
+    lines.push('', details("Agent's final message (it returned no structured report)", message));
+  }
   const runs = (agent.testRuns ?? []).map((run) => `- \`${safeText(run.args, 140)}\` → ${run.ok ? 'ok' : 'failed'}${Number.isFinite(run.total) ? ` (${run.passed}/${run.total})` : ''}`);
   if (runs.length) lines.push('', details(`Test runs during the agent session (${runs.length})`, runs.join('\n')));
   return lines.join('\n');
