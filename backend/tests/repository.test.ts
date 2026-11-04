@@ -76,6 +76,36 @@ it('deletes tasks and handles missing tasks', async () => {
   expect(await repository.delete(1)).toBe(false);
 });
 
+it('duplicates a task as an incomplete copy with a suffixed title', async () => {
+  const { database, repository } = setup();
+  const due = new Date('2026-10-15T00:00:00.000Z');
+  const source = { ...record, title: 'Task', description: 'Desc', priority: 'high', due_date: due, completed: true };
+  vi.spyOn(database.todo, 'findUnique').mockResolvedValue(source);
+  const create = vi.spyOn(database.todo, 'create').mockResolvedValue({ ...source, id: 2, title: 'Task (copy)', completed: false });
+  const result = await repository.duplicate(1);
+  expect(result).toMatchObject({ id: 2, title: 'Task (copy)', completed: false });
+  const data = create.mock.calls[0][0].data;
+  expect(data).toMatchObject({ title: 'Task (copy)', description: 'Desc', priority: 'high', due_date: due, completed: false });
+  expect(data.created_at).toBeInstanceOf(Date);
+  expect(data.updated_at).toEqual(data.created_at);
+});
+it('truncates long titles so the copy fits within 120 characters', async () => {
+  const { database, repository } = setup();
+  vi.spyOn(database.todo, 'findUnique').mockResolvedValue({ ...record, title: 'x'.repeat(120) });
+  const create = vi.spyOn(database.todo, 'create').mockResolvedValue(record);
+  await repository.duplicate(1);
+  const title = create.mock.calls[0][0].data.title as string;
+  expect(title).toHaveLength(120);
+  expect(title.endsWith('x (copy)')).toBe(true);
+});
+it('returns null without creating when duplicating a missing task', async () => {
+  const { database, repository } = setup();
+  vi.spyOn(database.todo, 'findUnique').mockResolvedValue(null);
+  const create = vi.spyOn(database.todo, 'create');
+  expect(await repository.duplicate(9)).toBeNull();
+  expect(create).not.toHaveBeenCalled();
+});
+
 it('propagates database errors', async () => {
   const { database, repository } = setup();
   vi.spyOn(database.todo, 'findMany').mockRejectedValue(new Error('Database unavailable'));
