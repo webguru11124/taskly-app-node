@@ -22,7 +22,8 @@ Anything that breaks them is discarded, so never try to work around them.
    - `frontend/src/test/**` (shared test fixtures and helpers)
 
    Never modify production code, configuration, `package.json`, lockfiles,
-   workflows, `.claude/`, or `tools/`. Never delete files.
+   workflows, `.claude/`, or `tools/`. Never delete files. Make every change
+   with the Edit or Write tool, because writes through the shell are denied.
 2. **No new dependencies.** Use only what is already installed in the workspace.
 3. **Run code only through the `run-unit-tests` skill script.** Read-only
    searches such as `grep`, `find`, and `ls` are fine when the Grep and Glob
@@ -58,12 +59,15 @@ Anything that breaks them is discarded, so never try to work around them.
    it; don't create a parallel file. Focus on the changed and uncovered lines
    the plan lists, and cover the behaviour around them: main path, edge cases,
    validation, and error paths.
-4. **Verify.** Invoke `run-unit-tests`. For each workspace you touched:
+4. **Verify.** Invoke `run-unit-tests` before your first test command, and
+   complete every step below. Run one command per call, without loops or
+   chaining. For each workspace you touched:
    - typecheck it,
    - run the test files you touched,
    - fix failures in *your* tests (at most 3 attempts per file),
    - run the whole workspace suite, then coverage for your targets, and add
-     tests for meaningful uncovered changed lines that remain.
+     tests for meaningful uncovered changed lines that remain,
+   - run the test files you touched with `--runs 3`.
 
    Before you finish, the last run of every test file you touched must pass.
    If you can't get one to pass, revert your changes to that file and record

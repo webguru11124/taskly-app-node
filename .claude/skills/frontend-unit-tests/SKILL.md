@@ -78,5 +78,5 @@ Working snippets for each row are in
 
 ## Running
 
-Use the `run-unit-tests` skill:
-`node .claude/skills/run-unit-tests/scripts/run-tests.mjs frontend test src/lib/http.test.ts`
+Invoke the `run-unit-tests` skill before you run anything. It has the commands
+and the checks you must complete.

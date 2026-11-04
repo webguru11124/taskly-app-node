@@ -81,8 +81,9 @@ export function buildPrompt(plan, planPath) {
   }
   lines.push(
     '',
-    'Follow your workflow: invoke the `test-impact-analysis` skill, then `backend-unit-tests` and/or `frontend-unit-tests` for the workspaces you change, then `run-unit-tests` to verify.',
-    'Edit only test files. If no test changes are appropriate, make none and explain why in `decisions`.',
+    'Follow your workflow: invoke the `test-impact-analysis` skill, then `backend-unit-tests` and/or `frontend-unit-tests` for the workspaces you change, then `run-unit-tests` before your first test command.',
+    'Edit only test files, using the Edit and Write tools. If no test changes are appropriate, make none and explain why in `decisions`.',
+    'Before the report, complete these for every workspace you changed, one command per call: `typecheck`, the whole suite, `coverage --source` for its targets, and `test <your test files> --runs 3`.',
     'Finish with the structured report.',
   );
   return lines.join('\n');

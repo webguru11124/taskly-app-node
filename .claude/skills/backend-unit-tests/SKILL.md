@@ -72,5 +72,5 @@ Full, working snippets for each layer are in
 
 ## Running
 
-Use the `run-unit-tests` skill:
-`node .claude/skills/run-unit-tests/scripts/run-tests.mjs backend test tests/router.test.ts`
+Invoke the `run-unit-tests` skill before you run anything. It has the commands
+and the checks you must complete.
